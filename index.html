@@ -249,10 +249,18 @@
     position: relative;
   }
 
+  /* Extra vertical space so hover panels aren't clipped top/bottom */
+  .row-scroll-clip {
+    overflow: hidden;
+    margin: -80px 0;
+    padding: 80px 0;
+  }
+
   .row-scroll {
     display: flex;
     gap: 6px;
     overflow-x: auto;
+    overflow-y: visible;
     scroll-behavior: smooth;
     scrollbar-width: none;
     padding: 20px 0 24px;
@@ -329,32 +337,26 @@
     text-transform: uppercase;
   }
 
-  /* Hover panel */
-  .card-hover {
-    position: absolute;
-    top: 0; left: 0;
+  /* Hover panel — hidden in DOM, shown via JS portal on body */
+  .card-hover { display: none; }
+
+  #card-hover-portal {
+    position: fixed;
     width: 280px;
     background: var(--card);
     border-radius: 6px;
-    box-shadow: 0 8px 40px rgba(0,0,0,0.8);
+    box-shadow: 0 12px 48px rgba(0,0,0,0.9);
     opacity: 0;
     pointer-events: none;
-    transform: scale(0.92) translateY(0px);
-    transform-origin: top center;
-    transition: opacity 0.25s ease, transform 0.25s ease;
-    z-index: 60;
+    transform: scale(0.93);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    z-index: 9999;
     overflow: hidden;
   }
-
-  .card:first-child .card-hover,
-  .card:nth-child(2) .card-hover { left: 0; transform-origin: top left; }
-  .card:last-child .card-hover,
-  .card:nth-last-child(2) .card-hover { left: auto; right: 0; transform-origin: top right; }
-
-  .card:hover .card-hover {
+  #card-hover-portal.visible {
     opacity: 1;
     pointer-events: all;
-    transform: scale(1.08) translateY(-20px);
+    transform: scale(1.06);
   }
 
   .card-hover-thumb {
@@ -629,7 +631,7 @@
     <div class="row-title">🔴 Featured Projects <span style="font-size:12px; font-weight:400; color:var(--muted); margin-left:8px;">— hover a card to explore</span></div>
     <div class="row-scroll-wrap">
       <button class="row-arrow row-arrow-left" onclick="scrollRow(this, -1)">&#8249;</button>
-      <div class="row-scroll" id="row-projects">
+      <div class="row-scroll-clip"><div class="row-scroll" id="row-projects">
 
         <div class="card">
           <div class="card-thumb">
@@ -761,7 +763,7 @@
           </div>
         </div>
 
-      </div>
+      </div></div>
       <button class="row-arrow row-arrow-right" onclick="scrollRow(this, 1)">&#8250;</button>
     </div>
   </div>
@@ -771,7 +773,7 @@
     <div class="row-title">⚡ Technical Arsenal</div>
     <div class="row-scroll-wrap">
       <button class="row-arrow row-arrow-left" onclick="scrollRow(this, -1)">&#8249;</button>
-      <div class="row-scroll">
+      <div class="row-scroll-clip"><div class="row-scroll">
         <div class="skill-card"><div class="skill-card-icon">🦜</div><div class="skill-card-name">LangChain</div><div class="skill-card-level">Advanced</div></div>
         <div class="skill-card"><div class="skill-card-icon">🕸️</div><div class="skill-card-name">LangGraph</div><div class="skill-card-level">Advanced</div></div>
         <div class="skill-card"><div class="skill-card-icon">🐍</div><div class="skill-card-name">Python</div><div class="skill-card-level">Advanced</div></div>
@@ -784,7 +786,7 @@
         <div class="skill-card"><div class="skill-card-icon">📊</div><div class="skill-card-name">Streamlit</div><div class="skill-card-level">Proficient</div></div>
         <div class="skill-card"><div class="skill-card-icon">🧪</div><div class="skill-card-name">pytest</div><div class="skill-card-level">Proficient</div></div>
         <div class="skill-card"><div class="skill-card-icon">🐙</div><div class="skill-card-name">GitHub API</div><div class="skill-card-level">Proficient</div></div>
-      </div>
+      </div></div>
       <button class="row-arrow row-arrow-right" onclick="scrollRow(this, 1)">&#8250;</button>
     </div>
   </div>
@@ -794,7 +796,7 @@
     <div class="row-title">💼 Experience &amp; Certifications</div>
     <div class="row-scroll-wrap">
       <button class="row-arrow row-arrow-left" onclick="scrollRow(this, -1)">&#8249;</button>
-      <div class="row-scroll">
+      <div class="row-scroll-clip"><div class="row-scroll">
 
         <div class="card">
           <div class="card-thumb">
@@ -853,7 +855,7 @@
           </div>
         </div>
 
-      </div>
+      </div></div>
       <button class="row-arrow row-arrow-right" onclick="scrollRow(this, 1)">&#8250;</button>
     </div>
   </div>
@@ -863,7 +865,7 @@
     <div class="row-title">🎨 Beyond the Code</div>
     <div class="row-scroll-wrap">
       <button class="row-arrow row-arrow-left" onclick="scrollRow(this, -1)">&#8249;</button>
-      <div class="row-scroll">
+      <div class="row-scroll-clip"><div class="row-scroll">
 
         <a href="https://www.instagram.com/crimsonxskies" target="_blank" style="text-decoration:none;">
         <div class="card">
@@ -965,7 +967,7 @@
           </div>
         </div>
 
-      </div>
+      </div></div>
       <button class="row-arrow row-arrow-right" onclick="scrollRow(this, 1)">&#8250;</button>
     </div>
   </div>
@@ -1016,6 +1018,82 @@
     const scroll = wrap.querySelector('.row-scroll');
     scroll.scrollBy({ left: dir * 500, behavior: 'smooth' });
   }
+
+  // ── HOVER PORTAL ──
+  // Creates a single floating panel at body level so it overlaps everything
+  const portal = document.createElement('div');
+  portal.id = 'card-hover-portal';
+  document.body.appendChild(portal);
+
+  let hideTimer = null;
+  let activeCard = null;
+
+  function showPortal(card) {
+    clearTimeout(hideTimer);
+    activeCard = card;
+
+    const hoverSrc = card.querySelector('.card-hover');
+    if (!hoverSrc) return;
+
+    portal.innerHTML = hoverSrc.innerHTML;
+
+    const rect = card.getBoundingClientRect();
+    const panelW = 280;
+    const panelH = 380;
+    const margin = 8;
+
+    // Horizontal: default align left of card, flip if too close to right edge
+    let left = rect.left;
+    if (left + panelW > window.innerWidth - margin) {
+      left = rect.right - panelW;
+    }
+    if (left < margin) left = margin;
+
+    // Vertical: show above card if not enough room below, else below
+    let top;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    if (spaceBelow >= panelH || spaceBelow >= spaceAbove) {
+      top = rect.top - 20;
+    } else {
+      top = rect.bottom - panelH + 20;
+    }
+    if (top < margin) top = margin;
+
+    portal.style.left = left + 'px';
+    portal.style.top = top + 'px';
+    portal.style.transformOrigin = 'top left';
+
+    // Restore any links inside portal
+    const links = hoverSrc.querySelectorAll('a');
+    const portalLinks = portal.querySelectorAll('a');
+    portalLinks.forEach((pl, i) => {
+      if (links[i]) {
+        pl.href = links[i].href;
+        pl.target = links[i].target;
+      }
+    });
+
+    requestAnimationFrame(() => {
+      portal.classList.add('visible');
+    });
+  }
+
+  function hidePortal() {
+    hideTimer = setTimeout(() => {
+      portal.classList.remove('visible');
+      activeCard = null;
+    }, 120);
+  }
+
+  // Attach events to all cards
+  document.querySelectorAll('.card').forEach(card => {
+    card.addEventListener('mouseenter', () => showPortal(card));
+    card.addEventListener('mouseleave', hidePortal);
+  });
+
+  portal.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+  portal.addEventListener('mouseleave', hidePortal);
 </script>
 
 </body>
